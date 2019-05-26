@@ -82,30 +82,30 @@ public class SupplierClient {
     System.out.printf("%nRemote call...%n%n");
     SignedResponse response = stub.listProducts(request);
 
-    System.out.println("DECIPHERING DIGEST IN SIGNATURE...");
+    System.out.println("[Crypto] deciphering digest in signature...");
     final String SYM_CIPHER = "AES/ECB/PKCS5Padding";
     Cipher cipher = Cipher.getInstance(SYM_CIPHER);
     cipher.init(Cipher.DECRYPT_MODE, readKey("secret.key"));
     byte[] decipheredDigest = cipher.doFinal(response.getSignature().getValue().toByteArray());
 
-    System.out.println("CALCULATING DIGEST IN RESPONSE...");
+    System.out.println("[Crypto] calculating digest in response...");
     MessageDigest messageDigest =  MessageDigest.getInstance("SHA-256"); 
     messageDigest.update(response.getResponse().toByteArray());
     byte[] digest = messageDigest.digest();
 
-    System.out.println("ASSERTING MESSAGE...");
-    if (java.util.Arrays.equals(digest, decipheredDigest))
-      System.out.println("Signature is valid! Message accepted! :)");
-    else
-      System.out.println("Signature is invalid! Message rejected! :(");
-
-    // print response
-    System.out.println("Received response:");
-    System.out.println(response);
-    System.out.println("in binary hexadecimals:");
-    byte[] responseBinary = response.toByteArray();
-    System.out.println(printHexBinary(responseBinary));
-    System.out.printf("%d bytes%n", responseBinary.length);
+    System.out.println("[Crypto] asserting message validity...");
+    if (java.util.Arrays.equals(digest, decipheredDigest)) {
+      System.out.println("[Crypto] Signature is valid! Message accepted!");
+      // print response
+      System.out.println("Received response:");
+      System.out.println(response);
+      System.out.println("in binary hexadecimals:");
+      byte[] responseBinary = response.toByteArray();
+      System.out.println(printHexBinary(responseBinary));
+      System.out.printf("%d bytes%n", responseBinary.length);
+    } else {
+      System.out.println("[Crypto] Signature is invalid! Message rejected!");
+    }
 
     // A Channel should be shutdown before stopping the process.
     channel.shutdownNow();
