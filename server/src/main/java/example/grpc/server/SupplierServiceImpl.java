@@ -8,6 +8,8 @@ import java.io.*;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /* helper to print binary in hexadecimal */
 import static javax.xml.bind.DatatypeConverter.printHexBinary;
 
@@ -28,6 +30,8 @@ import io.grpc.stub.StreamObserver;
 
 
 public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
+
+  private final AtomicInteger counter = new AtomicInteger(0); 
 
   public static SecretKeySpec readKey(String resourcePath) throws Exception {
     System.out.println("Reading key from resource " + resourcePath + " ...");
@@ -66,6 +70,7 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
       Money.Builder moneyBuilder = Money.newBuilder();
       moneyBuilder.setCurrencyCode("EUR").setUnits(10);
       productBuilder.setPrice(moneyBuilder.build());
+      productBuilder.setDiscount(0);
       responseBuilder.addProduct(productBuilder.build());
     }
     {
@@ -76,6 +81,7 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
       Money.Builder moneyBuilder = Money.newBuilder();
       moneyBuilder.setCurrencyCode("EUR").setUnits(12);
       productBuilder.setPrice(moneyBuilder.build());
+      productBuilder.setDiscount(0);
       responseBuilder.addProduct(productBuilder.build());
     }
     {
@@ -86,6 +92,7 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
       Money.Builder moneyBuilder = Money.newBuilder();
       moneyBuilder.setCurrencyCode("EUR").setUnits(8);
       productBuilder.setPrice(moneyBuilder.build());
+      productBuilder.setDiscount(0);
       responseBuilder.addProduct(productBuilder.build());
     }
 
@@ -105,6 +112,7 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
       Cipher cipher = Cipher.getInstance(SYM_CIPHER);
       cipher.init(Cipher.ENCRYPT_MODE, readKey("secret.key"));
 
+      signatureBuilder.setCounter(counter.getAndIncrement());
       signatureBuilder.setValue(ByteString.copyFrom(cipher.doFinal(digest)));
 
     } catch (Exception e) {

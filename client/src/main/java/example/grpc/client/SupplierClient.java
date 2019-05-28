@@ -10,6 +10,9 @@ import java.io.InputStream;
 
 import com.google.protobuf.ByteString;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /* helper to print binary in hexadecimal */
 import static javax.xml.bind.DatatypeConverter.printHexBinary;
 
@@ -26,6 +29,8 @@ import io.grpc.ManagedChannelBuilder;
 
 
 public class SupplierClient {
+
+  private static Map<String, Long> signerCounter = new ConcurrentHashMap<>();
 
   public static SecretKeySpec readKey(String resourcePath) throws Exception {
     System.out.println("Reading key from resource " + resourcePath + " ...");
@@ -80,33 +85,49 @@ public class SupplierClient {
 
     // make the call using the stub
     System.out.printf("%nRemote call...%n%n");
-    SignedResponse response = stub.listProducts(request);
+    for (int i = 0; i <= 1; i++) {
+      SignedResponse response = stub.listProducts(request);
 
-    System.out.println("[Crypto] deciphering digest in signature...");
-    final String SYM_CIPHER = "AES/ECB/PKCS5Padding";
-    Cipher cipher = Cipher.getInstance(SYM_CIPHER);
-    cipher.init(Cipher.DECRYPT_MODE, readKey("secret.key"));
-    byte[] decipheredDigest = cipher.doFinal(response.getSignature().getValue().toByteArray());
+      // validate counter
+      System.out.println("[Crypto] validating counter...");
+      String signerId = response.getSignature().getSignerId();
+      if (null == signerCounter.get(signerId)) {
+        signerCounter.put(signerId, response.getSignature().getCounter()); 
+      } else {
+        if (response.getSignature().getCounter() <= signerCounter.get(signerId)) {
+          System.out.println("[Crypto] receiving old message");
+          return;
+        } 
+        System.out.println("[Crypto] counter is valid");
+        signerCounter.put(signerId, response.getSignature().getCounter());
+      }
 
-    System.out.println("[Crypto] calculating digest in response...");
-    MessageDigest messageDigest =  MessageDigest.getInstance("SHA-256"); 
-    messageDigest.update(response.getResponse().toByteArray());
-    byte[] digest = messageDigest.digest();
+      // validate digest
+      System.out.println("[Crypto] deciphering digest in signature...");
+      final String SYM_CIPHER = "AES/ECB/PKCS5Padding";
+      Cipher cipher = Cipher.getInstance(SYM_CIPHER);
+      cipher.init(Cipher.DECRYPT_MODE, readKey("secret.key"));
+      byte[] decipheredDigest = cipher.doFinal(response.getSignature().getValue().toByteArray());
 
-    System.out.println("[Crypto] asserting message validity...");
-    if (java.util.Arrays.equals(digest, decipheredDigest)) {
-      System.out.println("[Crypto] Signature is valid! Message accepted!");
-      // print response
-      System.out.println("Received response:");
-      System.out.println(response);
-      System.out.println("in binary hexadecimals:");
-      byte[] responseBinary = response.toByteArray();
-      System.out.println(printHexBinary(responseBinary));
-      System.out.printf("%d bytes%n", responseBinary.length);
-    } else {
-      System.out.println("[Crypto] Signature is invalid! Message rejected!");
+      System.out.println("[Crypto] calculating digest in response...");
+      MessageDigest messageDigest =  MessageDigest.getInstance("SHA-256"); 
+      messageDigest.update(response.getResponse().toByteArray());
+      byte[] digest = messageDigest.digest();
+
+      System.out.println("[Crypto] asserting message validity...");
+      if (java.util.Arrays.equals(digest, decipheredDigest)) {
+        System.out.println("[Crypto] Signature is valid! Message accepted!");
+        // print response
+        System.out.println("Received response:");
+        System.out.println(response);
+        System.out.println("in binary hexadecimals:");
+        byte[] responseBinary = response.toByteArray();
+        System.out.println(printHexBinary(responseBinary));
+        System.out.printf("%d bytes%n", responseBinary.length);
+      } else {
+        System.out.println("[Crypto] Signature is invalid! Message rejected!");
+      }
     }
-
     // A Channel should be shutdown before stopping the process.
     channel.shutdownNow();
   }
